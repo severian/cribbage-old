@@ -1,3 +1,5 @@
+(ns net.jmbaird.cribbage.game)
+
 (defn make-deck []
   (for [suit (seq "CSHD")
         card (map vector
@@ -20,9 +22,15 @@
 (defn other-player [player]
   (if (= player 0) 1 0))
 
-(defn remove-from-hand [hand card-index]
-  (concat (subvec hand 0 card-index)
-          (subvec hand (+ card-index 1) (count hand))))
+(defn remove-from-hand [hand card1-index card2-index]
+  (loop [cards hand
+         new-hand '()
+         acc 0]
+    (cond (empty? cards) new-hand
+          (or (= acc card1-index) (= acc card2-index))
+            (recur (rest cards) new-hand (+ acc 1))
+          :else
+            (recur (rest cards) (conj new-hand (first cards)) (+ acc 1)))))
 
 (defn sum-values [cards]
   (reduce + (map value cards)))
@@ -75,14 +83,15 @@
                  (<= (value (first (hand))) remaining)) true
             :else (recur (rest hand) (+ index 1))))))
 
-(defn add-to-crib [game player card-index]
+(defn add-to-crib [game player card1-index card2-index]
   (let [hand (nth (game :hands) player)]
     (if (> (count hand) 4)
-      (let [card (nth hand card-index)
-            new-hand (remove-from-hand hand card-index)
-            new-hands (assoc (game :hands) player new-hand)
-            crib (conj (game :crib) card)]
-        (assoc game :hands new-hands :crib crib))
+      (loop [card1 (nth hand card1-index)
+             card2 (nth hand card2-index)
+             new-hand (remove-from-hand hand card1-index card2-index)
+             new-hands (assoc (game :hands) player new-hand)
+             new-crib (concat (game :crib) '(card1 card2))]
+        (assoc game :hands new-hands :crib new-crib))
       game)))
 
 (defn score-play [game player]
@@ -99,7 +108,6 @@
   (let [played-cards (nth (game :played-cards) player)]
     (if (not (contains? played-cards card-index))
       (let [hand (nth (game :hands) player)
-            card (nth hand card-index)
             player-played-cards (conj played-cards card-index)
             new-played-cards (assoc played-cards player player-played-cards)
             new-play-cards (conj (game :play-cards) card)]
