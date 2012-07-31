@@ -1,7 +1,5 @@
-(ns net.jmbaird.cribbage.game)
-
 (defn make-deck []
-  (for [suit (seq "CSHD")
+  (for [suit (seq "\u2660\u2665\u2666\u2663")
         card (map vector
                 [1 2 3 4 5 6 7 8 9 10 11 12 13]
                 [1 2 3 4 5 6 7 8 9 10 10 10 10])]
@@ -22,15 +20,14 @@
 (defn other-player [player]
   (if (= player 0) 1 0))
 
-(defn remove-from-hand [hand card1-index card2-index]
-  (loop [cards hand
-         new-hand '()
-         acc 0]
-    (cond (empty? cards) new-hand
-          (or (= acc card1-index) (= acc card2-index))
-            (recur (rest cards) new-hand (+ acc 1))
+(defn remove-from-hand [hand card-index]
+  ((fn rm [cards acc]
+    (cond (empty? cards) '()
+          (= acc card-index)
+            (rm (rest cards) (+ acc 1))
           :else
-            (recur (rest cards) (conj new-hand (first cards)) (+ acc 1)))))
+            (conj (rm (rest cards) (+ acc 1)) (first cards))))
+     hand 0))
 
 (defn sum-values [cards]
   (reduce + (map value cards)))
@@ -83,14 +80,13 @@
                  (<= (value (first (hand))) remaining)) true
             :else (recur (rest hand) (+ index 1))))))
 
-(defn add-to-crib [game player card1-index card2-index]
+(defn add-to-crib [game player card-index]
   (let [hand (nth (game :hands) player)]
     (if (> (count hand) 4)
-      (loop [card1 (nth hand card1-index)
-             card2 (nth hand card2-index)
-             new-hand (remove-from-hand hand card1-index card2-index)
-             new-hands (assoc (game :hands) player new-hand)
-             new-crib (concat (game :crib) '(card1 card2))]
+      (let [card (nth hand card-index)
+            new-hand (remove-from-hand hand card-index)
+            new-hands (assoc (game :hands) player new-hand)
+            new-crib (concat (game :crib) card)]
         (assoc game :hands new-hands :crib new-crib))
       game)))
 
@@ -110,7 +106,7 @@
       (let [hand (nth (game :hands) player)
             player-played-cards (conj played-cards card-index)
             new-played-cards (assoc played-cards player player-played-cards)
-            new-play-cards (conj (game :play-cards) card)]
+            new-play-cards (conj (game :play-cards) (nth hand card-index))]
         (assoc game
                :played-cards new-played-cards
                :play-cards new-play-cards))
