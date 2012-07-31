@@ -29,6 +29,15 @@
             (conj (rm (rest cards) (+ acc 1)) (first cards))))
      hand 0))
 
+(defn get-hand [game player]
+  (nth (game :hands) player))
+
+(defn get-unplayed-hand [game player]
+  (nth (game :unplayed-hands) player))
+
+(defn get-score [game player]
+  (nth (game :scores) player))
+
 (defn sum-values [cards]
   (reduce + (map value cards)))
 
@@ -87,7 +96,7 @@
             new-hand (remove-from-hand hand card-index)
             new-hands (assoc (game :hands) player new-hand)
             new-crib (concat (game :crib) card)]
-        (assoc game :hands new-hands :crib new-crib))
+        (assoc game :hands new-hands :unplayed-hands new-hands :crib new-crib))
       game)))
 
 (defn score-play [game player]
@@ -101,22 +110,23 @@
        (if (not can-play) 1 0))))
        
 (defn play-card [game player card-index]
-  (let [played-cards (nth (game :played-cards) player)]
-    (if (not (contains? played-cards card-index))
-      (let [hand (nth (game :hands) player)
-            player-played-cards (conj played-cards card-index)
-            new-played-cards (assoc played-cards player player-played-cards)
-            new-play-cards (conj (game :play-cards) (nth hand card-index))]
-        (assoc game
-               :played-cards new-played-cards
-               :play-cards new-play-cards))
-      game)))
+  (let [hand (get-unplayed-hand game player)
+        new-hand (remove-from-hand hand card-index)
+        new-hands (assoc (game :unplayed-hands) player new-hand)
+        new-play-cards (conj (game :play-cards) (nth hand card-index))
+        new-score (+ (get-score game player) (score-play game player))
+        new-scores (assoc (game :scores) player new-score)]
+    (assoc game
+           :scores new-scores
+           :unplayed-hands new-hands
+           :play-cards new-play-cards)))
 
 (defn make-game []
-  (let [deck (shuffle (make-deck))]
-    { :hands [(sort-hand (subvec deck 0 6))
-              (sort-hand (subvec deck 6 12))]
-      :played-cards [#{}, #{}]
+  (let [deck (shuffle (make-deck))
+        hands [(sort-hand (subvec deck 0 6))
+               (sort-hand (subvec deck 6 12))]]
+    { :hands hands
+      :unplayed-hands hands
       :scores [0 0]
       :play-cards '()
       :crib []
