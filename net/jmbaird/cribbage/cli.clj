@@ -9,10 +9,17 @@
          (rank card))
        (suit card)))
 
+(defn card-str [cards]
+  (join "  " (map card-name cards)))
+
 (defn print-game [game player]
   (let [hand (get-unplayed-hand game player)]
-    (println "Player" (+ player 1))
-    (println (join "  " (map card-name hand)))))
+    (println "Player 1's Score:" (get-score game 0))
+    (println "Player 2's Score:" (get-score game 1))
+    (println "Played Cards:" (card-str (reverse (game :play-cards))))
+    (println)
+    (println "Player" (str (+ player 1) "'s turn"))
+    (println (card-str hand))))
 
 (defn valid-card-input? [input hand]
   (try

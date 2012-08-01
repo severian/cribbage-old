@@ -79,15 +79,10 @@
         (is-run? cards) (count cards)
         :else (recur (rest cards))))
 
-(defn can-play? [game player]
-  (let [remaining (- 31 (sum-values (game :play-cards)))
-        played-cards (nth (game :played-cards) player)]
-    (loop [hand (nth (game :played-cards) player)
-           index 0]
-      (cond (empty? hand) false
-            (and (not (contains? played-cards index))
-                 (<= (value (first (hand))) remaining)) true
-            :else (recur (rest hand) (+ index 1))))))
+(defn can-play? [game play-cards player]
+  (let [remaining (- 31 (sum-values play-cards))
+        hand (get-unplayed-hand game player)]
+    (boolean (some #(<= (rank %) remaining) hand))))
 
 (defn add-to-crib [game player card-index]
   (let [hand (nth (game :hands) player)]
@@ -99,10 +94,8 @@
         (assoc game :hands new-hands :unplayed-hands new-hands :crib new-crib))
       game)))
 
-(defn score-play [game player]
-  (let [play-cards (game :play-cards)
-        values (sum-values play-cards)
-        can-play (can-play? (other-player player))]
+(defn score-play [game play-cards can-play player]
+  (let [values (sum-values play-cards)]
     (+ (score-run play-cards)
        (score-pairs play-cards)
        (if (= values 15) 2 0)
@@ -114,12 +107,14 @@
         new-hand (remove-from-hand hand card-index)
         new-hands (assoc (game :unplayed-hands) player new-hand)
         new-play-cards (conj (game :play-cards) (nth hand card-index))
-        new-score (+ (get-score game player) (score-play game player))
+        can-play (can-play? game new-play-cards (other-player player)) 
+        new-score (+ (get-score game player)
+                     (score-play game new-play-cards can-play player))
         new-scores (assoc (game :scores) player new-score)]
     (assoc game
            :scores new-scores
            :unplayed-hands new-hands
-           :play-cards new-play-cards)))
+           :play-cards (if can-play new-play-cards '()))))
 
 (defn make-game []
   (let [deck (shuffle (make-deck))
