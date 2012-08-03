@@ -77,7 +77,7 @@
 (defn score-run [cards]
   (cond (< (count cards) 3) 0
         (is-run? cards) (count cards)
-        :else (recur (rest cards))))
+        :else (recur (drop-last cards))))
 
 (defn can-play? [game play-cards player]
   (let [remaining (- 31 (sum-values play-cards))
