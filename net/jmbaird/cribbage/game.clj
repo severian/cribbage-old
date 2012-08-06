@@ -20,6 +20,21 @@
 (defn other-player [player]
   (if (= player 0) 1 0))
 
+(defn make-score [score cards desc]
+  [score cards desc])
+
+(defn score-val [score]
+  (nth score 0))
+
+(defn score-cards [score]
+  (nth score 1))
+
+(defn score-desc [score]
+  (nth score 2))
+
+(defn score-total [scores]
+  (reduce + (map score-val scores)))
+
 (defn remove-from-hand [hand card-index]
   ((fn rm [cards acc]
     (cond
@@ -49,6 +64,11 @@
 (defn played-points [game]
   (sum-values (game :play-cards)))
 
+(defn can-play? [game play-cards]
+  (let [remaining (- 31 (sum-values play-cards))
+        hand (get-unplayed-hand game (other-player (game :player)))]
+    (boolean (some #(<= (rank %) remaining) hand))))
+
 (defn add-score [game player score]
   (let [current-score (nth (game :scores) player)
         new-score (+ current-score score)
@@ -64,12 +84,12 @@
       (recur (first remainder) (rest remainder) (+ acc 1))
       acc)))
 
-(defn score-pairs [cards]
-  (condp = (same-rank-length cards)
-    2 2
-    3 6
-    4 12
-    0))
+(defn score-pair [game cards]
+  (case (same-rank-length cards)
+    2 (make-score 2 (take cards 2) "a pair")
+    3 (make-score 6 (take cards 3) "a pair royal")
+    4 (make-score 12 (take cards 4) "a double pair royal")
+    nil))
 
 (defn is-run? [cards]
   (let [sorted (sort-hand cards)]
@@ -82,15 +102,39 @@
             (recur next-card (rest remainder))
             false))))))
 
-(defn score-run [cards]
-  (cond (< (count cards) 3) 0
-        (is-run? cards) (count cards)
-        :else (recur (drop-last cards))))
+(defn score-run [game cards]
+  (cond
+    (< (count cards) 3)
+      nil
+    (is-run? cards)
+      (make-score (count cards) cards (str "a run of " (count cards)))
+    :else
+      (recur game (drop-last cards))))
 
-(defn can-play? [game play-cards player]
-  (let [remaining (- 31 (sum-values play-cards))
-        hand (get-unplayed-hand game player)]
-    (boolean (some #(<= (rank %) remaining) hand))))
+(defn score-15 [game cards]
+  (if (= (sum-values cards) 15)
+    (make-score 2 nil "fifteen")))
+
+(defn score-last [game cards]
+  (cond
+    (= (sum-values cards) 31)
+      (make-score 2 nil "thirty-one")
+    (not (can-play? game cards))
+      (make-score 1 nil "last")))
+
+(def *score-fns*
+  [score-pair score-run score-15 score-last])
+
+(defn score-play [game cards]
+  (loop [score-fns *score-fns* scores '()]
+    (if (empty? score-fns)
+      scores
+      (let [score ((first score-fns) game cards)]
+        (recur
+          (rest score-fns)
+          (if (nil? score)
+            scores
+            (conj scores score)))))))
 
 (defn add-to-crib [game player card-index]
   (let [hand (nth (game :hands) player)]
@@ -106,14 +150,6 @@
                :error nil))
       game)))
 
-(defn score-play [game play-cards can-play player]
-  (let [values (sum-values play-cards)]
-    (+ (score-run play-cards)
-       (score-pairs play-cards)
-       (if (= values 15) 2 0)
-       (if (= values 31) 1 0)
-       (if (not can-play) 1 0))))
-       
 (defn played-card-count [game]
   (- 8 (reduce + (map count (game :unplayed-hands)))))
 
@@ -134,12 +170,14 @@
             new-hand (remove-from-hand hand card-index)
             new-hands (assoc (game :unplayed-hands) player new-hand)
             new-play-cards (conj (game :play-cards) (nth hand card-index))
-            can-play (can-play? game new-play-cards (other-player player))
+            can-play (can-play? game new-play-cards)
+            score-details (score-play game new-play-cards)
             new-score (+ (get-score game player)
-                         (score-play game new-play-cards can-play player))
+                         (score-total score-details))
             new-scores (assoc (game :scores) player new-score)]
         (assoc game
                :scores new-scores
+               :score-details score-details
                :unplayed-hands new-hands
                :play-cards (if can-play new-play-cards '())
                :player (other-player player)
@@ -153,6 +191,7 @@
       :unplayed-hands hands
       :player 1
       :scores [0 0]
+      :score-details '()
       :play-cards '()
       :crib []
       :starter (nth deck 12) } ))

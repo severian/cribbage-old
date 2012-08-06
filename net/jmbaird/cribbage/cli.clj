@@ -1,7 +1,7 @@
 (use '[clojure.string :only (join)])
 
 (defn card-name [card]
-  (str (condp = (rank card)
+  (str (case (rank card)
          11 \J
          12 \Q
          13 \K
@@ -12,10 +12,30 @@
 (defn card-str [cards]
   (join "  " (map card-name cards)))
 
+(defn score-name [score]
+  (str
+    (score-val score)
+    " points for "
+    (score-desc score)
+    (if (score-cards score)
+      (str
+        " ("
+        (card-str (score-cards score))
+        ")"))))
+
+(defn score-str [scores]
+  (if (> (count scores) 0)
+    (join ", " (map score-name scores))))
+
 (defn print-game [game player]
-  (let [hand (get-unplayed-hand game player)]
+  (let [hand (get-unplayed-hand game player)
+        scores (score-str (game :score-details))]
     (println "Player 1's Score:" (get-score game 0))
+    (if (and scores (= player 1))
+      (println scores))
     (println "Player 2's Score:" (get-score game 1))
+    (if (and scores (= player 2))
+      (println scores))
     (if (> (count (game :play-cards)) 0)
       (do 
         (println "Played Cards:" (card-str (reverse (game :play-cards))))
