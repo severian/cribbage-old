@@ -22,11 +22,13 @@
 
 (defn remove-from-hand [hand card-index]
   ((fn rm [cards acc]
-    (cond (empty? cards) '()
-          (= acc card-index)
-            (rm (rest cards) (+ acc 1))
-          :else
-            (conj (rm (rest cards) (+ acc 1)) (first cards))))
+    (cond
+      (empty? cards)
+        '()
+      (= acc card-index)
+        (rm (rest cards) (+ acc 1))
+      :else
+        (conj (rm (rest cards) (+ acc 1)) (first cards))))
      hand 0))
 
 (defn get-hand [game player]
@@ -35,11 +37,17 @@
 (defn get-unplayed-hand [game player]
   (nth (game :unplayed-hands) player))
 
+(defn get-card [game player card-index]
+  (nth (get-unplayed-hand game player) card-index))
+
 (defn get-score [game player]
   (nth (game :scores) player))
 
 (defn sum-values [cards]
   (reduce + (map value cards)))
+
+(defn played-points [game]
+  (sum-values (game :play-cards)))
 
 (defn add-score [game player score]
   (let [current-score (nth (game :scores) player)
@@ -91,7 +99,11 @@
             new-hand (remove-from-hand hand card-index)
             new-hands (assoc (game :hands) player new-hand)
             new-crib (concat (game :crib) card)]
-        (assoc game :hands new-hands :unplayed-hands new-hands :crib new-crib))
+        (assoc game
+               :hands new-hands
+               :unplayed-hands new-hands
+               :crib new-crib
+               :error nil))
       game)))
 
 (defn score-play [game play-cards can-play player]
@@ -102,19 +114,36 @@
        (if (= values 31) 1 0)
        (if (not can-play) 1 0))))
        
+(defn played-card-count [game]
+  (- 8 (reduce + (map count (game :unplayed-hands)))))
+
+(defn can-play-card? [game card-index]
+  (let [remaining (- 31 (sum-values (game :play-cards)))
+        player (game :player)
+        card (get-card game player card-index)]
+    (<= (value card) remaining)))
+
 (defn play-card [game player card-index]
-  (let [hand (get-unplayed-hand game player)
-        new-hand (remove-from-hand hand card-index)
-        new-hands (assoc (game :unplayed-hands) player new-hand)
-        new-play-cards (conj (game :play-cards) (nth hand card-index))
-        can-play (can-play? game new-play-cards (other-player player)) 
-        new-score (+ (get-score game player)
-                     (score-play game new-play-cards can-play player))
-        new-scores (assoc (game :scores) player new-score)]
-    (assoc game
-           :scores new-scores
-           :unplayed-hands new-hands
-           :play-cards (if can-play new-play-cards '()))))
+  (cond
+    (not= player (game :player))
+      (assoc game :error "Not your turn!")
+    (not (can-play-card? game card-index))
+      (assoc game :error "Can't play that card.")
+    :else
+      (let [hand (get-unplayed-hand game player)
+            new-hand (remove-from-hand hand card-index)
+            new-hands (assoc (game :unplayed-hands) player new-hand)
+            new-play-cards (conj (game :play-cards) (nth hand card-index))
+            can-play (can-play? game new-play-cards (other-player player))
+            new-score (+ (get-score game player)
+                         (score-play game new-play-cards can-play player))
+            new-scores (assoc (game :scores) player new-score)]
+        (assoc game
+               :scores new-scores
+               :unplayed-hands new-hands
+               :play-cards (if can-play new-play-cards '())
+               :player (other-player player)
+               :error nil))))
 
 (defn make-game []
   (let [deck (shuffle (make-deck))
@@ -122,6 +151,7 @@
                (sort-hand (subvec deck 6 12))]]
     { :hands hands
       :unplayed-hands hands
+      :player 1
       :scores [0 0]
       :play-cards '()
       :crib []

@@ -16,9 +16,14 @@
   (let [hand (get-unplayed-hand game player)]
     (println "Player 1's Score:" (get-score game 0))
     (println "Player 2's Score:" (get-score game 1))
-    (println "Played Cards:" (card-str (reverse (game :play-cards))))
+    (if (> (count (game :play-cards)) 0)
+      (do 
+        (println "Played Cards:" (card-str (reverse (game :play-cards))))
+        (println (str (played-points game) "pts"))))
     (println)
     (println "Player" (str (+ player 1) "'s turn"))
+    (if (game :error)
+      (println (game :error)))
     (println (card-str hand))))
 
 (defn valid-card-input? [input hand]
@@ -41,12 +46,11 @@
         (recur game player msg)))))
 
 (defn play-cards [game]
-  (loop [game game turn 0]
-    (if (< turn 8)
-      (let [player (mod (+ turn 1) 2)
-            card-index (get-card-input game player "Play a card")]
-        (recur (play-card game player card-index) (+ turn 1)))
-      [game nil])))
+  (if (< (played-card-count game) 8)
+    (let [player (game :player)
+          card-index (get-card-input game player "Play a card")]
+      (recur (play-card game player card-index)))
+    [game nil]))
 
 (defn add-cards-to-crib [game]
   (loop [game game turn 0]
